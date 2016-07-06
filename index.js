@@ -38,19 +38,30 @@ var sessionMessages = [];
 //var delimiter = ';;;';
 var numMembers = 0;
 var sessionKey;
-
+var activeIps = []; // used to keep track of who has already joined, to ignore multiple sockets from same IP
 
 // Main Control Event-Handlers
 io.on('connection', function(socket) {
     console.log('Booya! Someone connected.');
+    var clientIp = socket.request.connection.remoteAddress;
+    
+    /* In production, can disable multiple sockets from same IP with this section
+    if (activeIps.indexOf(clientIp) == -1) {
+        activeIps.push(clientIp);
+    }
+
+    else {
+        return; // Do not register any event handlers for duplicate sockets of same IP
+    }
+    */
+
     if (++numMembers == 1) {
         sessionKey = Date.now().toString();
         saveSessionKey(redisCli, sessionKey, true);
     }
     
-    var clientIp = socket.request.connection.remoteAddress;
     
-    console.log("Client IP is " + clientIp);
+    console.log("Client IP is " + clientIp + " and socket ID is " + socket.id);
 
     var clientName;
     
@@ -73,16 +84,27 @@ io.on('connection', function(socket) {
             createUser(redisCli, clientIp, name);
         }
         socket.userName = name;
+
+        // Refactor following 4 lines into separate method
         socket.broadcast.emit('new member', name);
-        sessionMessages.push(joinMetadata(name));
+        var joinMessage = joinMetadata(name);
+        sessionMessages.push(joinMessage);
+        saveMessage(redisCli, sessionKey, joinMessage);
+
         clientName = clientName || name;
     });
     socket.on('disconnect', function() {
         //socket.broadcast.emit('member quits', socket.userName);
-        socket.broadcast.emit('member quits', clientName);
-        // quitMetadata
-        console.log('Aww...' +  clientName + ' disconnected.');
-        saveToUserArchive(redisCli, clientIp, sessionKey, sessionMessages); // record end index of convo for the client here, so that his archive will not include convo messages after exit
+        console.log("Socket " + socket.id + " is quitting; it's client name is " + clientName);
+        if (clientName != null && clientName != undefined) { // Ignore duplicate sockets/stale sockets that timeout
+            socket.broadcast.emit('member quits', clientName);
+            // quitMetadata
+            var quitMessage = quitMetadata(clientName);
+            sessionMessages.push(quitMessage);
+            saveMessage(redisCli, sessionKey, quitMessage);
+            console.log('Aww...' +  clientName + ' disconnected.');
+            saveToUserArchive(redisCli, clientIp, sessionKey, sessionMessages); // record end index of convo for the client here, so that his archive will not include convo messages after exit
+        }
     });
 });
 
@@ -101,16 +123,20 @@ function getInfo(redisCli, ip, next, socket) {
 
         console.log('Name is ' + name);
         socket.userName = name;
-        var messageHistory = info['messages']; // Add amount-limiting feature
+        //var messageHistory = info['messages']; // Add amount-limiting feature
         
-        console.log('Message History is ' + messageHistory);
+        //console.log('Message History is ' + messageHistory);
        
         socket.emit('greeting', name);
-        socket.broadcast.emit('new member', name);        
-        sessionMessages.push(joinMetadata(name));
+        
+        // The following 4 lines are repeated above, need to refactor into method
+        socket.broadcast.emit('new member', name);
+        var joinMessage = joinMetadata(name);
+        sessionMessages.push(joinMessage);
+        saveMessage(redisCli, sessionKey, joinMessage);
 
-        socket.emit('messageHistory', messageHistory);
-        socket.emit('friends')
+        //socket.emit('messageHistory', messageHistory); // Only what the user himself said
+        socket.emit('friends'); // Temp
         return next(true, redisCli, ip, socket);
     });    
 }
@@ -126,10 +152,10 @@ function askUsername(socket) {
 }
 
 
-// DB Functions
+// DB Functions - should extract into chat.js model file (perhaps in models folder) and import
 function createUser(redisCli, ip, name) { // Only called on new users
     var timeNow = new Date();
-    redisCli.hmset(ip, 'name', name, 'messages', '[]', 'logins', 1, 'last-login', timeNow, 'friends', '[]', 'convoIDs', '', function(err, res) {
+    redisCli.hmset(ip, 'name', name, 'logins', 1, 'last-login', timeNow, 'friends', '[]', 'convoIDs', '', function(err, res) {
         if (err) {
             console.log("ERROR : Failed to create user " + name + ":");
             console.log(err);
@@ -142,7 +168,7 @@ function createUser(redisCli, ip, name) { // Only called on new users
 
 function updateUser(redisCli, ip) { // Only called on old users
     var timeNow = new Date();
-    redisCli.hmset(ip, 'last-login', timeNow, function(error, response){
+    redisCli.hmset(ip, 'last-login', timeNow, function(error, response) {
         console.log("Last login date of " + ip + " updated to " + timeNow);
     });
     redisCli.hincrby(ip, 'logins', 1, function(e, r) {
@@ -219,7 +245,7 @@ function saveToUserArchive(redisCli, clientIp, sessionKey, sessionMsgs) {
 };
 
 
-// Formatting functions
+// Formatting functions - should extract into util.js (perhaps in a lib folder) and import
 function joinMetadata(name) {
     return "[INFO : " + name + " joined the chat at " + new Date() + " ]";
 }

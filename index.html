@@ -24,14 +24,18 @@
     <script>
       var accountName;
       var socket = io();
+      var messages = $('ul#messages');
+      var MAX_SCREEN_MESSAGES = 20;
+      var MAX_RECENT_MESSAGES = 5;
       $('form').submit(function(e){
         console.log("Submitting form");
         var msg = $('#m').val();
         socket.emit('chat message', accountName, msg);
         $('#m').val('');
-        $('#messages').append('<li> YOU [ ' + new Date() + ' ] : ' + msg + '</li>');
+        messages.append('<li> YOU [ ' + new Date() + ' ] : ' + msg + '</li>');
         console.log("Submitted " + msg);
         //e.preventDefault();
+        clearOldMsgs(messages, MAX_SCREEN_MESSAGES);
         return false;
       });
       socket.on('recent messages', function(msgs) {
@@ -44,6 +48,7 @@
             msgs.forEach(function(msg) {
                 recentMessages.append('<li>' + msg + '</li>');
             });
+            clearOldMsgs(recentMessages, MAX_RECENT_MESSAGES);
         }
       });
       socket.on('askUsername', function() {
@@ -59,19 +64,27 @@
       });
 
       socket.on('new member', function(name) {
-        $('#messages').append('<li> INFO : ' + name + ' joined the convo at ' + new Date() + ' !<li>');
-      });
-      socket.on('messageHistory', function(msgHistory) {
-      
+        messages.append('<li> INFO : ' + name + ' joined the convo at ' + new Date() + ' !<li>');
+        clearOldMsgs(messages, MAX_SCREEN_MESSAGES);
       });
 
       socket.on('incoming', function(name, msg) {
         //alert("Someone posted a message!");
-        $('#messages').append('<li>' + name + ' [ ' + new Date() + ' ] : ' + msg +'</li>');
+        messages.append('<li>' + name + ' [ ' + new Date() + ' ] : ' + msg +'</li>');
+        console.log(messages.children().length);
+        clearOldMsgs(messages, MAX_SCREEN_MESSAGES);
       });
       socket.on('member quits', function(name) {
-        $('#messages').append('<li> INFO : ' + name + ' quit the convo at ' + new Date() + '</li>');
+        messages.append('<li> INFO : ' + name + ' quit the convo at ' + new Date() + '</li>');
+        clearOldMsgs(messages, MAX_SCREEN_MESSAGES);
       });
+      
+      function clearOldMsgs(messages, limit) {
+        if (messages.children().length > limit) {
+          messages.children()[0].remove(); // Clear earlier messages; can be accessed from message history link
+          console.log("Removed message");
+        }
+      } 
     </script>
   </body>
 </html>
