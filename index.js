@@ -80,6 +80,7 @@ io.on('connection', function(socket) {
     socket.on('disconnect', function() {
         //socket.broadcast.emit('member quits', socket.userName);
         socket.broadcast.emit('member quits', clientName);
+        // quitMetadata
         console.log('Aww...' +  clientName + ' disconnected.');
         saveToUserArchive(redisCli, clientIp, sessionKey, sessionMessages); // record end index of convo for the client here, so that his archive will not include convo messages after exit
     });
@@ -105,8 +106,7 @@ function getInfo(redisCli, ip, next, socket) {
         console.log('Message History is ' + messageHistory);
        
         socket.emit('greeting', name);
-        socket.broadcast.emit('new member', name);
-        
+        socket.broadcast.emit('new member', name);        
         sessionMessages.push(joinMetadata(name));
 
         socket.emit('messageHistory', messageHistory);
@@ -196,7 +196,7 @@ function saveToUserArchive(redisCli, clientIp, sessionKey, sessionMsgs) {
                 currentData = [];
             }
             else {
-                currentData = JSON.parse(res);
+                currentData = JSON.parse(rep);
             }
             // currentData is now a list of objects
             currentData.push(archiveData);
