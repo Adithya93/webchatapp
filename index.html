@@ -1,0 +1,77 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Socket.IO chat</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font: 13px Helvetica, Arial; }
+      form { background: #000; padding: 3px; position: fixed; bottom: 0; width: 100%; }
+      form input { border: 0; padding: 10px; width: 90%; margin-right: .5%; }
+      form button { width: 9%; background: rgb(130, 224, 255); border: none; padding: 10px; }
+      #messages { list-style-type: none; margin: 0; padding: 0; }
+      #messages li { padding: 5px 10px; }
+      #messages li:nth-child(odd) { background: #eee; }
+    </style>
+    <script src="/socket"></script>
+    <script src="http://code.jquery.com/jquery-1.11.1.js"></script>
+  </head>
+  <body>
+    <ul id ="recentMessages"></ul>
+    <ul id="messages"></ul>
+    <form action="">
+      <input id="m" autocomplete="off" /><button type="button">Send</button>
+    </form>
+    <script>
+      var accountName;
+      var socket = io();
+      $('form').submit(function(e){
+        console.log("Submitting form");
+        var msg = $('#m').val();
+        socket.emit('chat message', accountName, msg);
+        $('#m').val('');
+        $('#messages').append('<li> YOU [ ' + new Date() + ' ] : ' + msg + '</li>');
+        console.log("Submitted " + msg);
+        //e.preventDefault();
+        return false;
+      });
+      socket.on('recent messages', function(msgs) {
+        var recentMessages = $('ul#recentMessages');
+        if (msgs == null || msgs == undefined || msgs.length == 0) {
+            recentMessages.append('<li> Start the conversation! </li>');
+        }
+        else {
+            console.log("Recent messages received by client : " + JSON.stringify(msgs));
+            msgs.forEach(function(msg) {
+                recentMessages.append('<li>' + msg + '</li>');
+            });
+        }
+      });
+      socket.on('askUsername', function() {
+        var userName = prompt('Welcome new user! Please enter a username.')
+        userName = userName || 'Anonymous';
+        accountName = userName;
+        socket.emit('gotUsername', userName);
+      });
+
+      socket.on('greeting', function(name) {
+        alert('Welcome back, ' + name + '!');
+        accountName = name;
+      });
+
+      socket.on('new member', function(name) {
+        $('#messages').append('<li> INFO : ' + name + ' joined the convo at ' + new Date() + ' !<li>');
+      });
+      socket.on('messageHistory', function(msgHistory) {
+      
+      });
+
+      socket.on('incoming', function(name, msg) {
+        //alert("Someone posted a message!");
+        $('#messages').append('<li>' + name + ' [ ' + new Date() + ' ] : ' + msg +'</li>');
+      });
+      socket.on('member quits', function(name) {
+        $('#messages').append('<li> INFO : ' + name + ' quit the convo at ' + new Date() + '</li>');
+      });
+    </script>
+  </body>
+</html>
