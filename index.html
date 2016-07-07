@@ -11,6 +11,9 @@
       #messages { list-style-type: none; margin: 0; padding: 0; }
       #messages li { padding: 5px 10px; }
       #messages li:nth-child(odd) { background: #eee; }
+      #messages li.myMsg { color: rgb(0, 0, 255); }
+      #messages li.info { color: rgb(0, 255, 0); }
+      #recentMessages li { color: rgb(152, 139, 139); }
     </style>
     <script src="/socket"></script>
     <script src="http://code.jquery.com/jquery-1.11.1.js"></script>
@@ -27,12 +30,14 @@
       var messages = $('ul#messages');
       var MAX_SCREEN_MESSAGES = 20;
       var MAX_RECENT_MESSAGES = 5;
+      var COLOR_GRADIENT = 65;
+      var colorMappings = {};
       $('form').submit(function(e){
         console.log("Submitting form");
         var msg = $('#m').val();
         socket.emit('chat message', accountName, msg);
         $('#m').val('');
-        messages.append('<li> YOU [ ' + new Date() + ' ] : ' + msg + '</li>');
+        messages.append('<li class="myMsg"> YOU [ ' + new Date() + ' ] : ' + msg + '</li>');
         console.log("Submitted " + msg);
         //e.preventDefault();
         clearOldMsgs(messages, MAX_SCREEN_MESSAGES);
@@ -41,7 +46,7 @@
       socket.on('recent messages', function(msgs) {
         var recentMessages = $('ul#recentMessages');
         if (msgs == null || msgs == undefined || msgs.length == 0) {
-            recentMessages.append('<li> Start the conversation! </li>');
+            recentMessages.append('<li class="info"> Start the conversation! </li>');
         }
         else {
             console.log("Recent messages received by client : " + JSON.stringify(msgs));
@@ -64,18 +69,20 @@
       });
 
       socket.on('new member', function(name) {
-        messages.append('<li> INFO : ' + name + ' joined the convo at ' + new Date() + ' !<li>');
+        messages.append('<li class="info"> INFO : ' + name + ' joined the convo at ' + new Date() + ' !<li>');
         clearOldMsgs(messages, MAX_SCREEN_MESSAGES);
       });
 
-      socket.on('incoming', function(name, msg) {
+      socket.on('incoming', function(name, msg, id) { // socket id sent from server is used to uniquely identify and assign color on client side
         //alert("Someone posted a message!");
-        messages.append('<li>' + name + ' [ ' + new Date() + ' ] : ' + msg +'</li>');
+        var colorAttr = 'style="color: #' + chooseColor(id, COLOR_GRADIENT) + '66ff;"';
+        console.log("Color for " + name + " is " + colorAttr);
+        messages.append('<li ' + colorAttr + '>' + name + ' [ ' + new Date() + ' ] : ' + msg +'</li>');
         console.log(messages.children().length);
         clearOldMsgs(messages, MAX_SCREEN_MESSAGES);
       });
       socket.on('member quits', function(name) {
-        messages.append('<li> INFO : ' + name + ' quit the convo at ' + new Date() + '</li>');
+        messages.append('<li class="info"> INFO : ' + name + ' quit the convo at ' + new Date() + '</li>');
         clearOldMsgs(messages, MAX_SCREEN_MESSAGES);
       });
       
@@ -84,7 +91,23 @@
           messages.children()[0].remove(); // Clear earlier messages; can be accessed from message history link
           console.log("Removed message");
         }
-      } 
+      }
+
+      function chooseColor(id, gradient) {
+        if (id in colorMappings) {
+            return colorMappings[id];
+        }
+        else {
+            var index = Object.keys(colorMappings).length + 1;
+            var redLevel = (index * gradient) % 256;
+            var colorStr = redLevel.toString(16);
+            if (colorStr.length == 1) {
+                colorStr = "0" + colorStr;
+            }
+            colorMappings[id] = colorStr;
+            return colorStr;
+        }
+      }
     </script>
   </body>
 </html>

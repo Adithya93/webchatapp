@@ -72,7 +72,7 @@ io.on('connection', function(socket) {
 
     socket.on('chat message', function(name, msg) {
         console.log("New message from " + name + " : " + msg);
-        socket.broadcast.emit('incoming', name, msg);
+        socket.broadcast.emit('incoming', name, msg, socket.id); // send id to allow clients to uniquely identify message sender
         var msgToSave = formatMessage(name, msg);
         sessionMessages.push(msgToSave);
         saveMessage(redisCli, sessionKey, msgToSave);
