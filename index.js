@@ -3,7 +3,7 @@ var http = require('http').Server(app);
 var io = require('socket.io')(http);
 
 var redis = require('redis');
-var redisCli = redis.createClient();
+var redisCli = redis.createClient(process.env.REDIS_URL || "redis://localhost:6379");
 
 var circJSON = require('circular-json');
 
