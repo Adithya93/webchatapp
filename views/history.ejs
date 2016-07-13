@@ -1,0 +1,9 @@
+<html>
+<h1>Convo Archives for <%= name || "You" %></h1>
+
+<ul#msgArchive>
+    <% messages.forEach(function(msg) { %>
+        <li><%= msg %></li>
+    <% }); %>
+</ul>
+</html>

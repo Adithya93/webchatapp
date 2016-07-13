@@ -12,16 +12,59 @@ redisCli.on('connect', function() {
 });
 
 app.get('/', function(req, res) {
-    res.sendFile(__dirname + '/index.html');
+    res.sendFile(__dirname + '/views/index.html');
 });
 
 app.get('/socket', function(req, res) {
     res.sendFile(__dirname + '/node_modules/socket.io-client/socket.io.js');
 });
 
-app.get('/:ip/:history', function(req, res) { // full convo archives; if ip doesn't exist, send a 404 for now; in future, redirect to login page if there is one
+app.get('/:ip/history', function(req, res) { // full convo archives; if ip doesn't exist, send a 404 for now; in future, redirect to login page if there is one
     // Extract user hash through ip key
-    
+    var ip = req.params.ip;
+    var name;
+    redisCli.hget(ip, 'convoIDs', function(err, rep) {
+        if (err) {
+           res.writeHead(404).end('You have never used openwebchat from this device. Messages are saved based on IP address only. Sorry!');
+           console.log('Unable to retrieve convoIDs for IP ' + ip); 
+        }
+        else {
+            console.log('ConvoIDs string is ' + rep);
+            var convoObjs = JSON.parse(rep);
+            var messages = [];
+            var convoID, endIndex, convoMsgs;
+            convoObjs.forEach(function(convoObj, index) {
+                convoID = convoObj["id"];
+                endIndex = convoObj["endIndex"];
+                redisCli.lrange(convoID, 0, endIndex, function(error, resp) {
+                    if (error) {
+                        console.log("Invalid ConvoID of " + convoID + "could not be retrieved from database! :");
+                        console.log(error);
+                    }
+                    else {
+                        convoMsgs = resp.slice(0, endIndex);
+                        messages.push(convoMsgs);
+                    }
+                    if (index == convoObjs.length - 1) {
+                        res.locals = {'messages':messages, 'name':name};
+                        console.log("Name is " + name + "and messages are " + JSON.stringify(messages));
+                        res.render('history.ejs');
+                    }
+                });   
+            });
+            //res.locals = {'messages':messages, 'name':name};
+            //console.log("Name is " + name + " messages are " + JSON.stringify(messages));
+            //res.render('history.ejs');
+        } 
+    });
+    redisCli.hget(ip, 'name', function(err, rep) {
+        if (err) {
+            console.log('Unable to retrieve name for ' + ip);
+        }
+        else {
+            name = rep;
+        }
+    });
     // If key doesn't exist
         // Write header 404
         // Send simple html saying they have never used the chat before
@@ -127,7 +170,7 @@ function getInfo(redisCli, ip, next, socket) {
         
         //console.log('Message History is ' + messageHistory);
        
-        socket.emit('greeting', name);
+        socket.emit('greeting', name, ip);
         
         // The following 4 lines are repeated above, need to refactor into method
         socket.broadcast.emit('new member', name);
@@ -218,7 +261,7 @@ function saveToUserArchive(redisCli, clientIp, sessionKey, sessionMsgs) {
         }
         else {
             currentData = rep;
-            if (rep.length == 0) {
+            if (rep && rep.length == 0) {
                 currentData = [];
             }
             else {
